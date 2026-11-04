@@ -17,9 +17,16 @@ CONVERSIONS = {
     ".png": ["jpg", "webp"],
 }
 
-# Display supported output formats
-print("Input format:", input_format)
-print("Supported output formats:", CONVERSIONS[input_format])
+# Validate input format
+if input_format not in CONVERSIONS:
+    print(f"Unsupported input format: {input_format}")
+    sys.exit(1)
+
+# Validate target format
+if target_format not in CONVERSIONS[input_format]:
+    print(f"Cannot convert {input_format} to {target_format}.")
+    print("Supported formats:", CONVERSIONS[input_format])
+    sys.exit(1)
 
 # Generate output path
 output_path = input_path.with_suffix(f".{target_format}")

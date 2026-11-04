@@ -1,3 +1,4 @@
+
 import sys
 import subprocess
 from pathlib import Path
@@ -8,6 +9,9 @@ target_format = sys.argv[2].lower()
 
 # Detect input file extension
 input_format = input_path.suffix.lower()
+
+# Path to LibreOffice executable
+LIBREOFFICE_PATH = r"C:\Program Files\LibreOffice\program\soffice.exe"
 
 # Supported conversions and conversion tools
 CONVERSIONS = {
@@ -27,6 +31,14 @@ CONVERSIONS = {
         "tool": "ffmpeg",
         "outputs": ["jpg", "webp"],
     },
+    ".docx": {
+        "tool": "libreoffice",
+        "outputs": ["pdf"],
+    },
+    ".pptx": {
+        "tool": "libreoffice",
+        "outputs": ["pdf"],
+    },
 }
 
 # Validate input format
@@ -42,13 +54,29 @@ if target_format not in CONVERSIONS[input_format]["outputs"]:
 
 # Select conversion tool
 selected_tool = CONVERSIONS[input_format]["tool"]
+
 print("Selected conversion tool:", selected_tool)
 
 # Generate output path
 output_path = input_path.with_suffix(f".{target_format}")
 
-# Run FFmpeg
-subprocess.run(
-    ["ffmpeg", "-y", "-i", str(input_path), str(output_path)],
-    check=True
-)
+# Run the appropriate conversion tool
+if selected_tool == "ffmpeg":
+
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(input_path), str(output_path)],
+        check=True
+    )
+
+elif selected_tool == "libreoffice":
+
+    subprocess.run(
+        [
+            LIBREOFFICE_PATH,
+            "--headless",
+            "--convert-to", target_format,
+            "--outdir", str(output_path.parent),
+            str(input_path)
+        ],
+        check=True
+    )

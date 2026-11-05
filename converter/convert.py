@@ -3,30 +3,10 @@ import sys
 import subprocess
 from pathlib import Path
 
-# Validate command-line arguments
-if len(sys.argv) != 3:
-    print("Usage: python convert.py <input_file> <target_format>")
-    sys.exit(1)
-
-# Get input file and target format
-input_path = Path(sys.argv[1])
-target_format = sys.argv[2].lower()
-
-# Check whether input file exists
-if not input_path.exists():
-    print(f"File not found: {input_path}")
-    sys.exit(1)
-
-# Check whether input file exists
-if not input_path.exists():
-    print(f"File not found: {input_path}")
-    sys.exit(1)
-
-# Detect input file extension
-input_format = input_path.suffix.lower()
 
 # Path to LibreOffice executable
 LIBREOFFICE_PATH = r"C:\Program Files\LibreOffice\program\soffice.exe"
+
 
 # Supported conversions and conversion tools
 CONVERSIONS = {
@@ -56,51 +36,101 @@ CONVERSIONS = {
     },
 }
 
-# Validate input format
-if input_format not in CONVERSIONS:
-    print(f"Unsupported input format: {input_format}")
-    sys.exit(1)
 
-# Validate target format
-if target_format not in CONVERSIONS[input_format]["outputs"]:
-    print(f"Cannot convert {input_format} to {target_format}.")
-    print("Supported formats:", CONVERSIONS[input_format]["outputs"])
-    sys.exit(1)
+# Main conversion function
+def convert_file(input_path, target_format):
 
-# Select conversion tool
-selected_tool = CONVERSIONS[input_format]["tool"]
+    input_path = Path(input_path)
+    target_format = target_format.lower().lstrip(".")
 
-print("Selected conversion tool:", selected_tool)
+    # Check whether input file exists
+    if not input_path.is_file():
+        raise FileNotFoundError(f"File not found: {input_path}")
 
-# Generate output path
-output_path = input_path.with_suffix(f".{target_format}")
+    # Detect input format
+    input_format = input_path.suffix.lower()
 
-# Run the appropriate conversion tool
-try:
-    if selected_tool == "ffmpeg":
+    # Validate input format
+    if input_format not in CONVERSIONS:
+        raise ValueError(f"Unsupported input format: {input_format}")
 
-        subprocess.run(
-            ["ffmpeg", "-y", "-i", str(input_path), str(output_path)],
-            check=True
+    # Validate target format
+    supported_formats = CONVERSIONS[input_format]["outputs"]
+
+    if target_format not in supported_formats:
+        raise ValueError(
+            f"Cannot convert {input_format} to {target_format}.\n"
+            f"Supported formats: {supported_formats}"
         )
 
-    elif selected_tool == "libreoffice":
+    # Select conversion tool
+    selected_tool = CONVERSIONS[input_format]["tool"]
 
-        subprocess.run(
-            [
-                LIBREOFFICE_PATH,
-                "--headless",
-                "--convert-to", target_format,
-                "--outdir", str(output_path.parent),
-                str(input_path)
-            ],
-            check=True
-        )
+    print("Selected conversion tool:", selected_tool)
 
-except subprocess.CalledProcessError:
-    print("Conversion failed. Please check your input file and target format.")
-    sys.exit(1)
+    # Generate output path
+    output_path = input_path.with_suffix(f".{target_format}")
 
-except FileNotFoundError:
-    print(f"Required conversion tool not found: {selected_tool}")
-    sys.exit(1)
+    # Run the appropriate conversion tool
+    try:
+        if selected_tool == "ffmpeg":
+
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-i", str(input_path),
+                    str(output_path)
+                ],
+                check=True
+            )
+
+        elif selected_tool == "libreoffice":
+
+            subprocess.run(
+                [
+                    LIBREOFFICE_PATH,
+                    "--headless",
+                    "--convert-to", target_format,
+                    "--outdir", str(output_path.parent),
+                    str(input_path)
+                ],
+                check=True
+            )
+
+        if not output_path.is_file():
+            raise RuntimeError("Conversion finished but output file was not created.")
+
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(
+            "Conversion failed. Please check your input file and target format."
+        ) from error
+
+    except FileNotFoundError as error:
+        raise RuntimeError(
+            f"Required conversion tool not found: {selected_tool}"
+        ) from error
+
+    return output_path
+
+
+# Command-line interface
+def main():
+
+    if len(sys.argv) != 3:
+        print("Usage: python convert.py <input_file> <target_format>")
+        return 1
+
+    try:
+        output_path = convert_file(sys.argv[1], sys.argv[2])
+        print(f"Conversion successful: {output_path}")
+        return 0
+
+    except (FileNotFoundError, ValueError, RuntimeError) as error:
+        print(error)
+        return 1
+
+
+# Only run main when this file is executed directly
+if __name__ == "__main__":
+    sys.exit(main())

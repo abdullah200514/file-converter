@@ -3,9 +3,24 @@ import sys
 import subprocess
 from pathlib import Path
 
+# Validate command-line arguments
+if len(sys.argv) != 3:
+    print("Usage: python convert.py <input_file> <target_format>")
+    sys.exit(1)
+
 # Get input file and target format
 input_path = Path(sys.argv[1])
 target_format = sys.argv[2].lower()
+
+# Check whether input file exists
+if not input_path.exists():
+    print(f"File not found: {input_path}")
+    sys.exit(1)
+
+# Check whether input file exists
+if not input_path.exists():
+    print(f"File not found: {input_path}")
+    sys.exit(1)
 
 # Detect input file extension
 input_format = input_path.suffix.lower()

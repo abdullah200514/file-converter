@@ -73,7 +73,31 @@ class TestCommandLineArguments(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0)
             self.assertTrue(output_file.exists())
+        # Test 5: Successful DOCX to PDF conversion
+    def test_docx_to_pdf(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
 
+            # Copy our test document into a temporary folder
+            input_file = Path(temp_dir) / "test.docx"
+
+            shutil.copy2(
+                PROJECT_ROOT / "tests" / "fixtures" / "test.docx",
+                input_file
+            )
+
+            # Run our converter
+            result = subprocess.run(
+                [sys.executable, str(CONVERT_SCRIPT), str(input_file), "pdf"],
+                capture_output=True,
+                text=True,
+                cwd=PROJECT_ROOT
+            )
+
+            # Check whether the PDF was created
+            output_file = input_file.with_suffix(".pdf")
+
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue(output_file.exists())
 
 if __name__ == "__main__":
     unittest.main()

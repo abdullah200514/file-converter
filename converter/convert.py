@@ -76,22 +76,31 @@ print("Selected conversion tool:", selected_tool)
 output_path = input_path.with_suffix(f".{target_format}")
 
 # Run the appropriate conversion tool
-if selected_tool == "ffmpeg":
+try:
+    if selected_tool == "ffmpeg":
 
-    subprocess.run(
-        ["ffmpeg", "-y", "-i", str(input_path), str(output_path)],
-        check=True
-    )
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", str(input_path), str(output_path)],
+            check=True
+        )
 
-elif selected_tool == "libreoffice":
+    elif selected_tool == "libreoffice":
 
-    subprocess.run(
-        [
-            LIBREOFFICE_PATH,
-            "--headless",
-            "--convert-to", target_format,
-            "--outdir", str(output_path.parent),
-            str(input_path)
-        ],
-        check=True
-    )
+        subprocess.run(
+            [
+                LIBREOFFICE_PATH,
+                "--headless",
+                "--convert-to", target_format,
+                "--outdir", str(output_path.parent),
+                str(input_path)
+            ],
+            check=True
+        )
+
+except subprocess.CalledProcessError:
+    print("Conversion failed. Please check your input file and target format.")
+    sys.exit(1)
+
+except FileNotFoundError:
+    print(f"Required conversion tool not found: {selected_tool}")
+    sys.exit(1)

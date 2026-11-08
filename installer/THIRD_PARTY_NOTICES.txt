@@ -42,4 +42,7 @@ are packaged into the application folder by PyInstaller.
 LibreOffice
 -----------
 LibreOffice is not included with File Converter. Word and PowerPoint conversion
-uses a copy of LibreOffice that is already installed on the computer.
+uses a copy of LibreOffice installed on the computer. If it is missing, Setup
+offers to download the official installer, version 26.8.2.2, from The Document
+Foundation and install it. LibreOffice is licensed under the Mozilla Public
+License 2.0 and other licences: https://www.libreoffice.org/licenses/

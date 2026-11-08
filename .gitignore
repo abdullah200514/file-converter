@@ -8,3 +8,5 @@ samples/
 *.mkv
 build/
 dist/
+installer_output/
+FileConverter.spec

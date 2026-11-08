@@ -1,20 +1,34 @@
 
 import sys
+import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
 from pathlib import Path
 
+
+# Locate the project root
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# Ensure the project root is available for imports
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+
+# Import conversion engine
 from converter.convert import CONVERSIONS, convert_file
 
 
-# Check that an input file was supplied
+# Check command-line arguments
 if len(sys.argv) != 2:
-    raise SystemExit("Usage: python -m converter.gui <input_file>")
+    raise SystemExit("Usage: python gui.py <input_file>")
 
+
+# Get selected input file
 input_path = Path(sys.argv[1])
 
 if not input_path.is_file():
     raise SystemExit(f"File not found: {input_path}")
+
 
 # Detect input format
 input_format = input_path.suffix.lower()
@@ -22,14 +36,15 @@ input_format = input_path.suffix.lower()
 if input_format not in CONVERSIONS:
     raise SystemExit(f"Unsupported input format: {input_format}")
 
-# Retrieve available output formats
+
+# Retrieve supported output formats
 available_formats = CONVERSIONS[input_format]["outputs"]
 
 
 # Create the main window
 root = tk.Tk()
 root.title("File Converter")
-root.geometry("420x280")
+root.geometry("420x300")
 root.resizable(False, False)
 
 
@@ -63,7 +78,7 @@ format_label = ttk.Label(
 format_label.pack(anchor="w")
 
 
-# Dropdown
+# Format dropdown
 format_var = tk.StringVar(value=available_formats[0])
 
 format_dropdown = ttk.Combobox(
@@ -75,27 +90,74 @@ format_dropdown = ttk.Combobox(
 format_dropdown.pack(fill="x", pady=(8, 0))
 
 
-# Handle the Convert button
-def on_convert():
+# Conversion status
+status_label = ttk.Label(
+    frame,
+    text="Ready"
+)
+status_label.pack(anchor="w", pady=(12, 0))
 
-    selected_format = format_var.get()
 
-    try:
-        output_path = convert_file(input_path, selected_format)
+# Handle successful conversion
+def show_success(output_path):
 
-    except (FileNotFoundError, ValueError, RuntimeError) as error:
-        messagebox.showerror(
-            "Conversion failed",
-            str(error),
-            parent=root
-        )
-        return
+    convert_button.config(state="normal")
+    format_dropdown.config(state="readonly")
+    status_label.config(text="Conversion complete!")
 
     messagebox.showinfo(
         "Conversion complete",
         f"Your file was saved to:\n{output_path}",
         parent=root
     )
+
+
+# Handle failed conversion
+def show_error(error_message):
+
+    convert_button.config(state="normal")
+    format_dropdown.config(state="readonly")
+    status_label.config(text="Conversion failed")
+
+    messagebox.showerror(
+        "Conversion failed",
+        error_message,
+        parent=root
+    )
+
+
+# Perform conversion in background
+def perform_conversion(selected_format):
+
+    try:
+        output_path = convert_file(input_path, selected_format)
+
+    except Exception as error:
+        root.after(0, show_error, str(error))
+
+    else:
+        root.after(0, show_success, output_path)
+
+
+# Handle Convert button click
+def on_convert():
+
+    selected_format = format_var.get()
+
+    # Prevent duplicate conversions
+    convert_button.config(state="disabled")
+    format_dropdown.config(state="disabled")
+
+    status_label.config(text="Converting...")
+
+    # Start background conversion thread
+    conversion_thread = threading.Thread(
+        target=perform_conversion,
+        args=(selected_format,),
+        daemon=True
+    )
+
+    conversion_thread.start()
 
 
 # Convert button

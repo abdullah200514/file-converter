@@ -9,4 +9,5 @@ samples/
 build/
 dist/
 installer_output/
+vendor/
 FileConverter.spec

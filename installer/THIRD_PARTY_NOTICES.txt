@@ -1,0 +1,45 @@
+File Converter - Third-Party Notices
+====================================
+
+File Converter includes or uses the following third-party software.
+
+
+FFmpeg
+------
+Installed as ffmpeg.exe, next to FileConverter.exe.
+
+FFmpeg is free software licensed under the GNU Lesser General Public License,
+version 3 or later (LGPLv3+). The full licence text is in the "licenses" folder:
+LGPL-3.0.txt, and GPL-3.0.txt, on which the LGPLv3 is based.
+
+This copy is an unmodified LGPL build of FFmpeg, version n9.0.2-48-gd4070a14ce,
+made by the FFmpeg-Builds project. It does not include the GPL-licensed x264
+and x265 components. Its full build configuration can be displayed by running:
+ffmpeg -version
+
+Build download:
+https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-11-08-12-35/ffmpeg-n9.0.2-48-gd4070a14ce-win64-lgpl-9.0.zip
+SHA-256 of that download:
+9f83f349ee2e12f8f31529f85a0740321997e3c72b2f8fd0a819a9fc850805f5
+
+Source code:
+- FFmpeg: https://github.com/FFmpeg/FFmpeg (commit d4070a14ce)
+- Build scripts, including the libraries compiled into this build:
+  https://github.com/BtbN/FFmpeg-Builds
+
+
+Python and Tcl/Tk
+-----------------
+The application runs on the Python runtime and uses Tcl/Tk for its window. Both
+are packaged into the application folder by PyInstaller.
+
+- Python is licensed under the Python Software Foundation License:
+  https://docs.python.org/3/license.html
+- Tcl/Tk is licensed under a BSD-style licence:
+  https://www.tcl.tk/software/tcltk/license.html
+
+
+LibreOffice
+-----------
+LibreOffice is not included with File Converter. Word and PowerPoint conversion
+uses a copy of LibreOffice that is already installed on the computer.

@@ -1,173 +1,253 @@
-
+import ctypes
+import os
+import subprocess
 import sys
 import threading
 import tkinter as tk
-from tkinter import ttk, messagebox
 from pathlib import Path
+from tkinter import font as tkfont
+from tkinter import ttk
 
-
-# Locate the project root
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
-# Ensure the project root is available for imports
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from converter.convert import CONVERSIONS, convert_file  # noqa: E402
 
-# Import conversion engine
-from converter.convert import CONVERSIONS, convert_file
-
-
-# Check command-line arguments
-if len(sys.argv) != 2:
-    raise SystemExit("Usage: python gui.py <input_file>")
-
-
-# Get selected input file
-input_path = Path(sys.argv[1])
-
-if not input_path.is_file():
-    raise SystemExit(f"File not found: {input_path}")
+BG = "#FAFAF9"
+TEXT = "#1C1917"
+MUTED = "#78716C"
+BORDER = "#D6D3D1"
+TRACK = "#E7E5E4"
+HOVER = "#44403C"
+SUCCESS = "#15803D"
+ERROR = "#B91C1C"
 
 
-# Detect input format
-input_format = input_path.suffix.lower()
-
-if input_format not in CONVERSIONS:
-    raise SystemExit(f"Unsupported input format: {input_format}")
-
-
-# Retrieve supported output formats
-available_formats = CONVERSIONS[input_format]["outputs"]
-
-
-# Create the main window
-root = tk.Tk()
-root.title("File Converter")
-root.geometry("420x300")
-root.resizable(False, False)
-
-
-# Main container
-frame = ttk.Frame(root, padding=20)
-frame.pack(fill="both", expand=True)
-
-
-# Window heading
-title = ttk.Label(
-    frame,
-    text="Convert your file",
-    font=("Segoe UI", 16, "bold")
-)
-title.pack(anchor="w")
-
-
-# Display selected filename
-file_label = ttk.Label(
-    frame,
-    text=f"Selected file: {input_path.name}"
-)
-file_label.pack(anchor="w", pady=(15, 20))
-
-
-# Output format label
-format_label = ttk.Label(
-    frame,
-    text="Choose output format:"
-)
-format_label.pack(anchor="w")
-
-
-# Format dropdown
-format_var = tk.StringVar(value=available_formats[0])
-
-format_dropdown = ttk.Combobox(
-    frame,
-    textvariable=format_var,
-    values=available_formats,
-    state="readonly"
-)
-format_dropdown.pack(fill="x", pady=(8, 0))
-
-
-# Conversion status
-status_label = ttk.Label(
-    frame,
-    text="Ready"
-)
-status_label.pack(anchor="w", pady=(12, 0))
-
-
-# Handle successful conversion
-def show_success(output_path):
-
-    convert_button.config(state="normal")
-    format_dropdown.config(state="readonly")
-    status_label.config(text="Conversion complete!")
-
-    messagebox.showinfo(
-        "Conversion complete",
-        f"Your file was saved to:\n{output_path}",
-        parent=root
-    )
-
-
-# Handle failed conversion
-def show_error(error_message):
-
-    convert_button.config(state="normal")
-    format_dropdown.config(state="readonly")
-    status_label.config(text="Conversion failed")
-
-    messagebox.showerror(
-        "Conversion failed",
-        error_message,
-        parent=root
-    )
-
-
-# Perform conversion in background
-def perform_conversion(selected_format):
-
+def enable_sharp_text():
     try:
-        output_path = convert_file(input_path, selected_format)
-
-    except Exception as error:
-        root.after(0, show_error, str(error))
-
-    else:
-        root.after(0, show_success, output_path)
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:
+        pass
 
 
-# Handle Convert button click
-def on_convert():
+def pick_font(root, candidates):
+    installed = set(tkfont.families(root))
+    for name in candidates:
+        if name in installed:
+            return name
+    return "TkDefaultFont"
 
-    selected_format = format_var.get()
 
-    # Prevent duplicate conversions
-    convert_button.config(state="disabled")
-    format_dropdown.config(state="disabled")
+def shorten(name, limit=30):
+    if len(name) <= limit:
+        return name
+    keep = (limit - 1) // 2
+    return name[:keep] + "…" + name[-keep:]
 
-    status_label.config(text="Converting...")
 
-    # Start background conversion thread
-    conversion_thread = threading.Thread(
-        target=perform_conversion,
-        args=(selected_format,),
-        daemon=True
+def apply_style(root):
+    body = pick_font(root, ["Segoe UI Variable Text", "Segoe UI"])
+    display = pick_font(root, ["Segoe UI Variable Display", "Segoe UI"])
+
+    style = ttk.Style(root)
+    style.theme_use("clam")
+
+    style.configure("TFrame", background=BG)
+    style.configure("TLabel", background=BG, foreground=TEXT, font=(body, 10))
+    style.configure("Caption.TLabel", foreground=MUTED, font=(body, 8, "bold"))
+    style.configure("Title.TLabel", font=(display, 16, "bold"))
+    style.configure("Badge.TLabel", font=(display, 12, "bold"))
+    style.configure("Arrow.TLabel", foreground=MUTED, font=(body, 12))
+    style.configure("Status.TLabel", foreground=MUTED, font=(body, 9))
+
+    style.configure(
+        "TCombobox",
+        fieldbackground="white", background="white", foreground=TEXT,
+        bordercolor=BORDER, lightcolor="white", darkcolor="white",
+        arrowcolor=TEXT, padding=8, font=(body, 10),
+    )
+    style.map(
+        "TCombobox",
+        fieldbackground=[("readonly", "white"), ("disabled", BG)],
+        foreground=[("disabled", MUTED)],
+        bordercolor=[("focus", TEXT)],
+    )
+    root.option_add("*TCombobox*Listbox.font", (body, 10))
+    root.option_add("*TCombobox*Listbox.selectBackground", TEXT)
+    root.option_add("*TCombobox*Listbox.selectForeground", "white")
+
+    # Primary (dark) button
+    style.configure(
+        "Accent.TButton",
+        background=TEXT, foreground="white", bordercolor=TEXT,
+        lightcolor=TEXT, darkcolor=TEXT, borderwidth=0,
+        focusthickness=0, padding=(0, 11), font=(body, 10, "bold"),
+    )
+    style.map(
+        "Accent.TButton",
+        background=[("disabled", BORDER), ("active", HOVER)],
+        bordercolor=[("disabled", BORDER), ("active", HOVER)],
+        lightcolor=[("disabled", BORDER), ("active", HOVER)],
+        darkcolor=[("disabled", BORDER), ("active", HOVER)],
+        foreground=[("disabled", "white")],
     )
 
-    conversion_thread.start()
+    # Secondary (outlined) button
+    style.configure(
+        "Ghost.TButton",
+        background=BG, foreground=TEXT, bordercolor=BORDER,
+        lightcolor=BG, darkcolor=BG, focusthickness=0,
+        padding=(0, 9), font=(body, 9),
+    )
+    style.map(
+        "Ghost.TButton",
+        background=[("active", TRACK)],
+        bordercolor=[("active", MUTED)],
+    )
+
+    style.configure(
+        "Thin.Horizontal.TProgressbar",
+        troughcolor=TRACK, background=TEXT, bordercolor=TRACK,
+        lightcolor=TEXT, darkcolor=TEXT, thickness=3,
+    )
 
 
-# Convert button
-convert_button = ttk.Button(
-    frame,
-    text="Convert",
-    command=on_convert
-)
-convert_button.pack(fill="x", pady=(20, 0))
+def main():
+    enable_sharp_text()
+
+    root = tk.Tk()
+    root.title("Convert to...")
+    root.configure(bg=BG)
+    root.resizable(False, False)
+    apply_style(root)
+
+    if len(sys.argv) != 2:
+        root.destroy()
+        return 1
+
+    input_path = Path(sys.argv[1])
+    input_format = input_path.suffix.lower()
+
+    if not input_path.is_file() or input_format not in CONVERSIONS:
+        root.destroy()
+        return 1
+
+    # --- Layout -------------------------------------------------------
+    frame = ttk.Frame(root, padding=(28, 26), width=420)
+    frame.pack(fill="both", expand=True)
+
+    ttk.Label(frame, text="CONVERT FILE", style="Caption.TLabel").pack(anchor="w")
+    ttk.Label(frame, text=shorten(input_path.name), style="Title.TLabel").pack(
+        anchor="w", pady=(4, 22)
+    )
+
+    # "MP4  →  [ MP3 v ]" reads as a sentence: from this, to that
+    row = ttk.Frame(frame)
+    row.pack(fill="x")
+    row.columnconfigure(2, weight=1)
+
+    ttk.Label(row, text=input_format[1:].upper(), style="Badge.TLabel").grid(
+        row=0, column=0
+    )
+    ttk.Label(row, text="→", style="Arrow.TLabel").grid(row=0, column=1, padx=14)
+
+    formats = [f.upper() for f in CONVERSIONS[input_format]["outputs"]]
+    format_var = tk.StringVar(value=formats[0])
+    format_box = ttk.Combobox(
+        row, textvariable=format_var, values=formats, state="readonly"
+    )
+    format_box.grid(row=0, column=2, sticky="ew")
+
+    convert_button = ttk.Button(frame, text="Convert", style="Accent.TButton")
+    convert_button.pack(fill="x", pady=(22, 0))
+
+    # Determinate while idle (zero = empty track); indeterminate while converting
+    progress = ttk.Progressbar(
+        frame, style="Thin.Horizontal.TProgressbar", mode="determinate"
+    )
+    progress.pack(fill="x", pady=(22, 0))
+
+    status_label = ttk.Label(
+        frame, text="Ready", style="Status.TLabel", wraplength=364, justify="left"
+    )
+    status_label.pack(anchor="w", pady=(10, 0))
+
+    # Shown only after a successful conversion
+    result_frame = ttk.Frame(frame)
+    result_frame.columnconfigure((0, 1), weight=1)
+    open_button = ttk.Button(result_frame, text="Open file", style="Ghost.TButton")
+    folder_button = ttk.Button(
+        result_frame, text="Show in folder", style="Ghost.TButton"
+    )
+    open_button.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+    folder_button.grid(row=0, column=1, sticky="ew", padx=(6, 0))
+
+    # --- Behaviour ----------------------------------------------------
+    def set_status(text, colour=MUTED):
+        status_label.configure(text=text, foreground=colour)
+
+    def set_busy(busy):
+        if busy:
+            convert_button.state(["disabled"])
+            format_box.configure(state="disabled")
+            progress.configure(mode="indeterminate")
+            progress.start(12)
+        else:
+            progress.stop()
+            progress.configure(mode="determinate", value=0)
+            convert_button.state(["!disabled"])
+            format_box.configure(state="readonly")
+
+    def on_success(output_path):
+        set_busy(False)
+        set_status(f"Done. Saved as {output_path.name}", SUCCESS)
+        convert_button.configure(text="Convert again")
+        open_button.configure(command=lambda: os.startfile(output_path))
+        folder_button.configure(
+            command=lambda: subprocess.Popen(["explorer", f"/select,{output_path}"])
+        )
+        result_frame.pack(fill="x", pady=(14, 0))
+
+    def on_failure(message):
+        set_busy(False)
+        set_status(f"Failed: {message}", ERROR)
+        convert_button.configure(text="Try again")
+
+    def worker(target):
+        """Background thread. Never touch widgets directly from here."""
+        try:
+            output = convert_file(
+                input_path,
+                target,
+                on_status=lambda msg: root.after(0, set_status, msg),
+            )
+        except (FileNotFoundError, ValueError, RuntimeError) as err:
+            root.after(0, on_failure, str(err))
+        except Exception as err:
+            root.after(0, on_failure, f"Unexpected error: {err}")
+        else:
+            root.after(0, on_success, output)
+
+    def start_conversion():
+        result_frame.pack_forget()
+        set_busy(True)
+        set_status("Getting ready...")
+        threading.Thread(
+            target=worker, args=(format_var.get().lower(),), daemon=True
+        ).start()
+
+    convert_button.configure(command=start_conversion)
+
+    # Centre the window using its natural size
+    root.update_idletasks()
+    x = (root.winfo_screenwidth() - root.winfo_reqwidth()) // 2
+    y = (root.winfo_screenheight() - root.winfo_reqheight()) // 3
+    root.geometry(f"+{x}+{y}")
+
+    root.mainloop()
+    return 0
 
 
-# Start GUI event loop
-root.mainloop()
+if __name__ == "__main__":
+    sys.exit(main())

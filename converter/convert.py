@@ -1,4 +1,3 @@
-
 import sys
 import subprocess
 from pathlib import Path
@@ -37,8 +36,15 @@ CONVERSIONS = {
 }
 
 
-# Main conversion function
-def convert_file(input_path, target_format):
+# Main conversion function.
+# on_status is optional: a function that receives progress messages.
+def convert_file(input_path, target_format, on_status=None):
+
+    def report(message):
+        if on_status is not None:
+            on_status(message)
+
+    report("Checking file...")
 
     input_path = Path(input_path)
     target_format = target_format.lower().lstrip(".")
@@ -66,26 +72,31 @@ def convert_file(input_path, target_format):
     # Select conversion tool
     selected_tool = CONVERSIONS[input_format]["tool"]
 
-    print("Selected conversion tool:", selected_tool)
-
     # Generate output path
     output_path = input_path.with_suffix(f".{target_format}")
 
     # Run the appropriate conversion tool
     try:
         if selected_tool == "ffmpeg":
+            report("Converting with FFmpeg...")
 
             subprocess.run(
                 [
                     "ffmpeg",
+                    "-hide_banner",
+                    "-loglevel", "error",
                     "-y",
                     "-i", str(input_path),
                     str(output_path)
                 ],
-                check=True
+                check=True,
+                capture_output=True,
+                stdin=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
 
         elif selected_tool == "libreoffice":
+            report("Converting with LibreOffice (can take a few seconds)...")
 
             subprocess.run(
                 [
@@ -95,8 +106,13 @@ def convert_file(input_path, target_format):
                     "--outdir", str(output_path.parent),
                     str(input_path)
                 ],
-                check=True
+                check=True,
+                capture_output=True,
+                stdin=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
+
+        report("Checking output...")
 
         if not output_path.is_file():
             raise RuntimeError("Conversion finished but output file was not created.")
@@ -122,7 +138,7 @@ def main():
         return 1
 
     try:
-        output_path = convert_file(sys.argv[1], sys.argv[2])
+        output_path = convert_file(sys.argv[1], sys.argv[2], on_status=print)
         print(f"Conversion successful: {output_path}")
         return 0
 

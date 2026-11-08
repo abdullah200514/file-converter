@@ -6,7 +6,7 @@ import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import font as tkfont
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -231,11 +231,27 @@ def main():
 
     def start_conversion():
         result_frame.pack_forget()
+
+        target = format_var.get().lower()
+
+        # Same rule the engine uses: same folder, same name, new extension
+        output_path = input_path.with_suffix(f".{target}")
+
+        if output_path.exists():
+            replace = messagebox.askyesno(
+                "File already exists",
+                f"{output_path.name} already exists.\n\nReplace it?",
+                default="no",
+                icon="warning",
+                parent=root,
+            )
+            if not replace:
+                set_status("Cancelled. Nothing was changed.")
+                return
+
         set_busy(True)
         set_status("Getting ready...")
-        threading.Thread(
-            target=worker, args=(format_var.get().lower(),), daemon=True
-        ).start()
+        threading.Thread(target=worker, args=(target,), daemon=True).start()
 
     convert_button.configure(command=start_conversion)
 

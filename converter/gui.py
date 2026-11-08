@@ -46,6 +46,60 @@ def shorten(name, limit=30):
     return name[:keep] + "…" + name[-keep:]
 
 
+class ThinProgress(tk.Canvas):
+    """A slim track with a sliding segment while work is running.
+
+    Drawn by hand because the clam ttk progress bar rendered far thicker
+    than the thickness it was given.
+    """
+
+    STEP_MS = 16
+
+    def __init__(self, parent, thickness):
+        # width=1: let pack(fill="x") decide, or the Canvas default widens the window
+        super().__init__(
+            parent, width=1, height=thickness, bg=TRACK,
+            highlightthickness=0, borderwidth=0,
+        )
+        self._segment = self.create_rectangle(0, 0, 0, 0, fill=TEXT, width=0)
+        self._job = None
+        self._position = 0
+
+    def start(self):
+        self.stop()
+        self._tick()
+
+    def stop(self):
+        if self._job is not None:
+            self.after_cancel(self._job)
+            self._job = None
+        self._position = 0
+        self.coords(self._segment, 0, 0, 0, 0)
+
+    def _tick(self):
+        width = self.winfo_width()
+        segment = width // 4
+        self._position += max(1, width // 90)
+        if self._position > width + segment:
+            self._position = 0
+        self.coords(
+            self._segment,
+            self._position - segment, 0, self._position, self.winfo_height(),
+        )
+        self._job = self.after(self.STEP_MS, self._tick)
+
+
+def set_window_icon(root):
+    """Draw a small arrow icon in code, so no image file has to be packaged."""
+    size = 32
+    icon = tk.PhotoImage(master=root, width=size, height=size)
+    icon.put(TEXT, to=(0, 0, size, size))
+    icon.put("white", to=(7, 14, 20, 18))
+    for step in range(9):
+        icon.put("white", to=(17 + step, 7 + step, 18 + step, 25 - step))
+    root.iconphoto(True, icon)
+
+
 def apply_style(root):
     body = pick_font(root, ["Segoe UI Variable Text", "Segoe UI"])
     display = pick_font(root, ["Segoe UI Variable Display", "Segoe UI"])
@@ -72,6 +126,9 @@ def apply_style(root):
         fieldbackground=[("readonly", "white"), ("disabled", BG)],
         foreground=[("disabled", MUTED)],
         bordercolor=[("focus", TEXT)],
+        # Stop the chosen format being highlighted in blue
+        selectbackground=[("readonly", "white")],
+        selectforeground=[("readonly", TEXT)],
     )
     root.option_add("*TCombobox*Listbox.font", (body, 10))
     root.option_add("*TCombobox*Listbox.selectBackground", TEXT)
@@ -106,36 +163,52 @@ def apply_style(root):
         bordercolor=[("active", MUTED)],
     )
 
-    style.configure(
-        "Thin.Horizontal.TProgressbar",
-        troughcolor=TRACK, background=TEXT, bordercolor=TRACK,
-        lightcolor=TEXT, darkcolor=TEXT, thickness=3,
-    )
-
 
 def main():
     enable_sharp_text()
 
     root = tk.Tk()
-    root.title("Convert to...")
+    root.withdraw()  # Stay hidden until the layout is ready
+    root.title("File Converter")
     root.configure(bg=BG)
     root.resizable(False, False)
+    set_window_icon(root)
     apply_style(root)
 
     if len(sys.argv) != 2:
+        messagebox.showinfo(
+            "File Converter",
+            "To convert a file, right-click it in File Explorer and choose "
+            "Convert to...\n\nOn Windows 11 it is under Show more options.",
+        )
         root.destroy()
         return 1
 
     input_path = Path(sys.argv[1])
     input_format = input_path.suffix.lower()
 
-    if not input_path.is_file() or input_format not in CONVERSIONS:
+    if not input_path.is_file():
+        messagebox.showerror("File Converter", f"File not found:\n{input_path}")
         root.destroy()
         return 1
 
+    if input_format not in CONVERSIONS:
+        messagebox.showerror(
+            "File Converter", f"{input_path.name} is not a supported file type."
+        )
+        root.destroy()
+        return 1
+
+    # Pixel sizes below were chosen at 100% display scaling
+    scale = root.winfo_fpixels("1i") / 96
+    content_width = round(364 * scale)
+
     # --- Layout -------------------------------------------------------
-    frame = ttk.Frame(root, padding=(28, 26), width=420)
+    frame = ttk.Frame(root, padding=(28, 26))
     frame.pack(fill="both", expand=True)
+
+    # Keeps the window the same width whatever the filename
+    ttk.Frame(frame, width=content_width, height=0).pack()
 
     ttk.Label(frame, text="CONVERT FILE", style="Caption.TLabel").pack(anchor="w")
     ttk.Label(frame, text=shorten(input_path.name), style="Title.TLabel").pack(
@@ -162,14 +235,11 @@ def main():
     convert_button = ttk.Button(frame, text="Convert", style="Accent.TButton")
     convert_button.pack(fill="x", pady=(22, 0))
 
-    # Determinate while idle (zero = empty track); indeterminate while converting
-    progress = ttk.Progressbar(
-        frame, style="Thin.Horizontal.TProgressbar", mode="determinate"
-    )
+    progress = ThinProgress(frame, thickness=max(3, round(3 * scale)))
     progress.pack(fill="x", pady=(22, 0))
 
     status_label = ttk.Label(
-        frame, text="Ready", style="Status.TLabel", wraplength=364, justify="left"
+        frame, style="Status.TLabel", wraplength=content_width, justify="left"
     )
     status_label.pack(anchor="w", pady=(10, 0))
 
@@ -187,15 +257,27 @@ def main():
     def set_status(text, colour=MUTED):
         status_label.configure(text=text, foreground=colour)
 
+    def is_busy():
+        return convert_button.instate(["disabled"])
+
+    def selected_output():
+        # Same rule the engine uses: same folder, same name, new extension
+        return input_path.with_suffix(f".{format_var.get().lower()}")
+
+    def show_ready(_event=None):
+        """Reset to the idle state, including after picking another format."""
+        format_box.selection_clear()
+        result_frame.pack_forget()
+        convert_button.configure(text="Convert")
+        set_status(f"Will save as {shorten(selected_output().name, 44)}")
+
     def set_busy(busy):
         if busy:
             convert_button.state(["disabled"])
             format_box.configure(state="disabled")
-            progress.configure(mode="indeterminate")
-            progress.start(12)
+            progress.start()
         else:
             progress.stop()
-            progress.configure(mode="determinate", value=0)
             convert_button.state(["!disabled"])
             format_box.configure(state="readonly")
 
@@ -233,9 +315,7 @@ def main():
         result_frame.pack_forget()
 
         target = format_var.get().lower()
-
-        # Same rule the engine uses: same folder, same name, new extension
-        output_path = input_path.with_suffix(f".{target}")
+        output_path = selected_output()
 
         if output_path.exists():
             replace = messagebox.askyesno(
@@ -253,13 +333,26 @@ def main():
         set_status("Getting ready...")
         threading.Thread(target=worker, args=(target,), daemon=True).start()
 
+    def on_return(_event):
+        if not is_busy():
+            start_conversion()
+
+    def on_escape(_event):
+        if not is_busy():
+            root.destroy()
+
     convert_button.configure(command=start_conversion)
+    format_box.bind("<<ComboboxSelected>>", show_ready)
+    root.bind("<Return>", on_return)
+    root.bind("<Escape>", on_escape)
+    show_ready()
 
     # Centre the window using its natural size
     root.update_idletasks()
     x = (root.winfo_screenwidth() - root.winfo_reqwidth()) // 2
     y = (root.winfo_screenheight() - root.winfo_reqheight()) // 3
     root.geometry(f"+{x}+{y}")
+    root.deiconify()
 
     root.mainloop()
     return 0

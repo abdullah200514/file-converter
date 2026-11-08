@@ -1,16 +1,26 @@
 # File Converter
 
-A Windows file-conversion tool built with Python. The goal is to let users right-click a file in Windows Explorer, select **Convert to...**, choose an output format, and have the converted file saved alongside the original.
+A Windows file converter that lives in the File Explorer right-click menu. Right-click a file, choose **Convert to...**, pick an output format, and the converted file is saved next to the original.
 
-The project currently has a working command-line converter. Windows Explorer integration and the format-selection interface are planned.
+![File Converter window](docs/screenshot.png)
+
+## How it works for the user
+
+1. Right-click a supported file in Windows Explorer (on Windows 11, under **Show more options**).
+2. Choose **Convert to...**.
+3. A small window opens showing the file and only the formats it can be converted to.
+4. Choose a format and press **Convert**. The window shows live progress, then **Open file** and **Show in folder** buttons.
+5. If the output file already exists, the app asks before replacing it.
 
 ## Status
 
-**Working CLI prototype.** FFmpeg and LibreOffice are integrated, and automated tests cover the main conversion workflows.
+Working on Windows 11. This is a learning and portfolio project, and it has not been packaged for other users yet.
 
-## Supported conversions
+### Supported conversions
 
-| Input format | Output format | Conversion tool |
+Every route below has been tested through the Explorer right-click workflow.
+
+| Input | Output | Tool |
 |---|---|---|
 | MP4 | MP3, WAV | FFmpeg |
 | MP3 | WAV | FFmpeg |
@@ -19,109 +29,81 @@ The project currently has a working command-line converter. Windows Explorer int
 | DOCX | PDF | LibreOffice |
 | PPTX | PDF | LibreOffice |
 
-Some configured conversion routes still require additional testing.
+Also tested: filenames and folder names containing spaces, and the overwrite confirmation.
 
-## Features
+## Architecture
 
-- Detects input file types using their extensions.
-- Validates requested output formats.
-- Automatically selects the appropriate conversion tool.
-- Saves converted files next to the original file.
-- Handles missing arguments, nonexistent files and conversion failures.
-- Includes automated tests using Python's `unittest` framework.
+The conversion engine is independent of the interface.
 
-## How it works
+- `converter/convert.py` is the engine. `convert_file()` validates the input, looks up the tool in the `CONVERSIONS` table, runs it with `subprocess`, and returns the output path or raises a meaningful error. An optional `on_status` callback reports progress.
+- `converter/gui.py` is a Tkinter window. It reads the supported formats from the same `CONVERSIONS` table, runs conversions on a background thread so the window stays responsive, and shows the engine's status messages.
+- `install_context_menu.ps1` and `uninstall_context_menu.ps1` add and remove the Explorer menu entries. They write to `HKCU`, so no administrator rights are needed, and they launch the GUI through `pythonw.exe` so no console window appears.
 
-The application is written in Python and delegates the actual conversion work to established external tools.
+The actual conversion is done by existing tools, not custom code:
 
-- [FFmpeg](https://ffmpeg.org/) handles audio, video and image conversions.
-- [LibreOffice](https://www.libreoffice.org/) handles Office document conversions in headless mode.
-
-Python identifies the input extension, checks the requested output format against a conversion lookup table, selects the appropriate tool and executes it using `subprocess`.
-
-The planned Windows integration will use registry entries to add a **Convert to...** option to the Windows Explorer context menu.
+- [FFmpeg](https://ffmpeg.org/) for audio, video and images.
+- [LibreOffice](https://www.libreoffice.org/) in headless mode for Office documents.
 
 ## Requirements
 
-- Windows 10 or 11.
-- Python 3.10 or newer.
-- Git.
-- FFmpeg installed and available on PATH.
-- LibreOffice installed.
+- Windows 10 or 11
+- Python 3.10 or newer
+- FFmpeg on PATH
+- LibreOffice
 
-**Note:** The current implementation expects LibreOffice at:
+Install the external tools with winget:
 
-`C:\Program Files\LibreOffice\program\soffice.exe`
+```powershell
+winget install Gyan.FFmpeg
+winget install -e --id TheDocumentFoundation.LibreOffice
+```
 
-If LibreOffice is installed elsewhere, update `LIBREOFFICE_PATH` in `converter/convert.py`.
+The code expects LibreOffice at `C:\Program Files\LibreOffice\program\soffice.exe`. If yours is elsewhere, change `LIBREOFFICE_PATH` in `converter/convert.py`.
 
-The project currently uses Python's standard library and does not require additional Python packages.
+There are no Python packages to install. The project uses only the standard library.
 
 ## Setup
-
-Clone the repository:
 
 ```powershell
 git clone https://github.com/abdullah200514/file-converter.git
 cd file-converter
-```
-
-Create and activate a virtual environment:
-
-```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 ```
 
-Verify the external tools are accessible:
+Add the right-click menu entries:
 
 ```powershell
-ffmpeg -version
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+.\install_context_menu.ps1
 ```
 
-LibreOffice can be checked using:
+Remove them again with `.\uninstall_context_menu.ps1`. The entries point at this folder's virtual environment, so run the installer again if you move the project.
+
+## Command-line use
+
+The engine also works without the GUI:
 
 ```powershell
-& "C:\Program Files\LibreOffice\program\soffice.exe" --version
-```
-
-## Usage
-
-Run the converter from the project root:
-
-```powershell
-python converter\convert.py "path\to\input_file.mp4" mp3
-```
-
-For a Word document:
-
-```powershell
+python converter\convert.py "path\to\video.mp4" mp3
 python converter\convert.py "path\to\document.docx" pdf
 ```
 
-The output file is saved in the same directory as the original, using the requested extension.
+To open the GUI directly:
+
+```powershell
+python -m converter.gui "path\to\file.mp4"
+```
 
 ## Running tests
-
-The project uses Python's built-in `unittest` framework.
-
-Run the automated test suite:
 
 ```powershell
 python -m unittest discover -s tests -v
 ```
 
-The tests cover:
+The five tests cover missing arguments, a nonexistent input file, an unsupported conversion, MP4 to WAV, and DOCX to PDF. The MP4 test generates its own one-second file with FFmpeg, and the DOCX fixture is in `tests/fixtures/`. FFmpeg and LibreOffice must be installed for the integration tests to pass.
 
-- Missing command-line arguments.
-- Nonexistent input files.
-- Unsupported conversions.
-- MP4 to WAV conversion.
-- DOCX to PDF conversion.
-
-FFmpeg and LibreOffice must be installed to run the full integration test suite.
-
-**Test sample requirement:** The current MP4 integration tests use `samples/00081.mp4`. The `samples/` directory is excluded from Git, so a fresh clone must supply an MP4 at that location before running the full suite. The generic DOCX fixture is included in `tests/fixtures/`.
+The GUI and the Explorer integration are tested manually.
 
 ## Project structure
 
@@ -129,28 +111,38 @@ FFmpeg and LibreOffice must be installed to run the full integration test suite.
 file-converter/
 ├── converter/
 │   ├── __init__.py
-│   └── convert.py
+│   ├── convert.py
+│   └── gui.py
+├── docs/
+│   └── screenshot.png
 ├── tests/
 │   ├── fixtures/
 │   │   └── test.docx
 │   └── test_convert.py
-├── samples/              # Local test files, excluded from Git
+├── samples/                       # local test files, excluded from Git
+├── install_context_menu.ps1
+├── uninstall_context_menu.ps1
 ├── .gitignore
 ├── README.md
 └── requirements.txt
 ```
 
-## Planned features
+## How this was built
 
-- Windows Explorer right-click context menu integration.
-- A popup interface for selecting output formats.
-- Expanded image, audio and video conversion support.
-- Additional document conversion formats.
-- Improved error handling and conversion reliability.
-- More comprehensive automated tests.
+I used Claude (an AI assistant) throughout this project, mainly as a learning tool. It explained the concepts and the reasoning behind each step, and I worked through the engine step by step, making changes and testing them myself.
+
+The front end is different: **the GUI (`converter/gui.py`) was written by Claude.** The design direction was mine. I chose the minimal look, the "from → to" layout, the live status messages instead of popups, the Open file and Show in folder buttons, and asking before overwriting an existing file. I also tweaked parts of the code myself. I tested each version through the real Explorer right-click workflow and sent back screenshots and errors until it matched what I wanted.
+
+I'm being upfront about this because I want the repo to show what I built and what I'm still learning. The problems I hit and fixed along the way are in the commit messages. Examples: a console window appearing on every conversion, a stale file causing a keyword-argument error, and a progress bar that left a block behind after finishing.
+
+## Planned
+
+- Logging.
+- More audio, video, image and document formats.
+- PDF to editable DOCX and OCR for scanned PDFs.
+- Batch conversion.
+- Packaging with an installer, so it can be used without a Python setup.
 
 ## Author
 
 Built by Muhammad Abdullah as a learning and portfolio project.
-
-[GitHub Repository](https://github.com/abdullah200514/file-converter)

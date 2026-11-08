@@ -1,10 +1,8 @@
+import os
+import shutil
 import sys
 import subprocess
 from pathlib import Path
-
-
-# Path to LibreOffice executable
-LIBREOFFICE_PATH = r"C:\Program Files\LibreOffice\program\soffice.exe"
 
 
 # Supported conversions and conversion tools
@@ -34,6 +32,32 @@ CONVERSIONS = {
         "outputs": ["pdf"],
     },
 }
+
+
+# Look for LibreOffice instead of assuming where it is installed
+def find_libreoffice():
+    found = shutil.which("soffice")
+    if found:
+        return found
+
+    for variable in ("ProgramFiles", "ProgramFiles(x86)"):
+        base = os.environ.get(variable)
+        if base:
+            candidate = Path(base) / "LibreOffice" / "program" / "soffice.exe"
+            if candidate.is_file():
+                return str(candidate)
+
+    return None
+
+
+# Look for FFmpeg: next to the app first, then on PATH
+def find_ffmpeg():
+    if getattr(sys, "frozen", False):
+        bundled = Path(sys.executable).parent / "ffmpeg.exe"
+        if bundled.is_file():
+            return str(bundled)
+
+    return shutil.which("ffmpeg")
 
 
 # Main conversion function.
@@ -78,11 +102,18 @@ def convert_file(input_path, target_format, on_status=None):
     # Run the appropriate conversion tool
     try:
         if selected_tool == "ffmpeg":
+            ffmpeg = find_ffmpeg()
+            if ffmpeg is None:
+                raise RuntimeError(
+                    "FFmpeg was not found. Install it from ffmpeg.org "
+                    "and try again."
+                )
+
             report("Converting with FFmpeg...")
 
             subprocess.run(
                 [
-                    "ffmpeg",
+                    ffmpeg,
                     "-hide_banner",
                     "-loglevel", "error",
                     "-y",
@@ -96,11 +127,18 @@ def convert_file(input_path, target_format, on_status=None):
             )
 
         elif selected_tool == "libreoffice":
+            soffice = find_libreoffice()
+            if soffice is None:
+                raise RuntimeError(
+                    "LibreOffice was not found. Install it from "
+                    "libreoffice.org and try again."
+                )
+
             report("Converting with LibreOffice (can take a few seconds)...")
 
             subprocess.run(
                 [
-                    LIBREOFFICE_PATH,
+                    soffice,
                     "--headless",
                     "--convert-to", target_format,
                     "--outdir", str(output_path.parent),

@@ -6,3 +6,5 @@ samples/
 *.mp3
 *.wav
 *.mkv
+build/
+dist/

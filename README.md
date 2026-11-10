@@ -14,7 +14,7 @@ A Windows file converter that lives in the File Explorer right-click menu. Right
 
 ## Status
 
-Working on Windows 11, and packaged as a single Windows installer, `FileConverter-Setup.exe`. This is a learning and portfolio project. The installer has been tested on my own PC and is being tested on a second machine. It has not been published as a release yet.
+Working on Windows 11, and packaged as a single Windows installer, `FileConverter-Setup.exe`. This is a learning and portfolio project. The installer has been tested on my own PC and on a second Windows laptop, where Setup also downloaded and installed LibreOffice.
 
 ### Supported conversions
 
@@ -33,10 +33,10 @@ Also tested: filenames and folder names containing spaces, and the overwrite con
 
 ## Installing
 
-Run `FileConverter-Setup.exe`. It installs for the current user only, into `%LOCALAPPDATA%\Programs\File Converter`, and adds the **Convert to...** menu entries.
+Download `FileConverter-Setup.exe` from the [latest release](https://github.com/abdullah200514/file-converter/releases/latest) and run it. It installs for the current user only, into `%LOCALAPPDATA%\Programs\File Converter`, and adds the **Convert to...** menu entries. You only need to run it once: the menu entries stay until you uninstall.
 
 - **FFmpeg is included** in the installer, so audio, video and image conversion work straight away.
-- **LibreOffice is needed for Word and PowerPoint.** It is too large to bundle, so if it is missing, Setup offers to download and install it (a 376 MB download that needs administrator approval). The download is pinned to one version and checked against its published SHA-256 before it is used. If you skip it, everything else still works.
+- **LibreOffice is needed for Word and PowerPoint.** It is too large to bundle, so if it is missing, Setup offers to download and install it (a 376 MB download that needs administrator approval). The download is pinned to one version and checked against its published SHA-256 before it is used. If you skip it, everything else still works. Installing LibreOffice is what makes Setup take several minutes; without it, Setup finishes in seconds.
 - **The installer is unsigned**, so Windows SmartScreen may show "Windows protected your PC". Choose **More info**, then **Run anyway**. A code-signing certificate costs money and is not planned for now.
 
 Uninstall from **Settings > Apps > Installed apps**. This removes the app and its menu entries. LibreOffice is a separate program, so it stays installed unless you remove it as well.
@@ -184,7 +184,6 @@ I'm being upfront about this because I want the repo to show what I built and wh
 
 ## Planned
 
-- Finish testing the installer on a clean Windows machine, then publish it as a GitHub Release.
 - Logging.
 - More audio, video, image and document formats.
 - PDF to editable DOCX and OCR for scanned PDFs.
